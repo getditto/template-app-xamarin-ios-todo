@@ -94,7 +94,8 @@ namespace Tasks
 			var dict = new Dictionary<string, object>
 			{
 				{"body", text},
-				{"isCompleted", false}
+				{"isCompleted", false},
+				{ "isDeleted", false }
 			};
 
 			var docId = this.collection.Upsert(dict);
