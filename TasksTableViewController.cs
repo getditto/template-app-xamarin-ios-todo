@@ -96,7 +96,7 @@ namespace Tasks
 				{"body", text},
 				{"isCompleted", false},
 				{ "isDeleted", false }
-            };
+			};
 
 			var docId = this.collection.Upsert(dict);
 		}
