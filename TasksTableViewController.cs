@@ -3,15 +3,13 @@ using Foundation;
 using UIKit;
 using DittoSDK;
 using System.Collections.Generic;
+using Newtonsoft.Json;
+using Xamarin.Essentials;
 
 namespace Tasks
 {
 	public partial class TasksTableViewController : UITableViewController
 	{
-		private const string collectionName = "tasks";
-		private DittoLiveQuery liveQuery;
-		private DittoSubscription subscription;
-		List<Task> tasks = new List<Task>();
 		private TasksTableSource tasksTableSource = new TasksTableSource();
 
 		private Ditto ditto
@@ -27,7 +25,7 @@ namespace Tasks
 		{
 			get
 			{
-				return this.ditto.Store.Collection(collectionName);
+				return ditto.Store.Collection(DittoTask.CollectionName);
 			}
 		}
 
@@ -40,7 +38,6 @@ namespace Tasks
 			base.ViewDidLoad();
 
 			setupTaskList();
-
 		}
 
 		public override void ViewWillAppear(bool animated)
@@ -52,20 +49,23 @@ namespace Tasks
 
 		public void setupTaskList()
 		{
-			subscription = ditto.Store["tasks"].Find("!isDeleted").Subscribe();
-			liveQuery = ditto.Store["tasks"].Find("!isDeleted").ObserveLocal((docs, _event) =>
+			var query = $"SELECT * FROM {DittoTask.CollectionName} WHERE isDeleted = false";
+
+			ditto.Sync.RegisterSubscription(query);
+			ditto.Store.RegisterObserver(query, storeObservationHandler: async (queryResult) =>
 			{
-				tasks = docs.ConvertAll(d => new Task(d));
+				var tasks = queryResult.Items.ConvertAll(d =>
+				{
+					return JsonConvert.DeserializeObject<DittoTask>(d.JsonString());
+				});
+
 				tasksTableSource.updateTasks(tasks);
 
 				InvokeOnMainThread(() =>
 				{
 					TableView.ReloadData();
 				});
-
 			});
-
-			ditto.Store["tasks"].Find("isDeleted == true").Evict();
 		}
 
 		partial void didClickAddTask(UIBarButtonItem sender)
@@ -90,7 +90,6 @@ namespace Tasks
 
 		public void addTask(string text)
 		{
-
 			var dict = new Dictionary<string, object>
 			{
 				{"body", text},
@@ -98,7 +97,10 @@ namespace Tasks
 				{ "isDeleted", false }
 			};
 
-			var docId = this.collection.Upsert(dict);
-		}
+            ditto.Store.ExecuteAsync($"INSERT INTO {DittoTask.CollectionName} DOCUMENTS (:doc1)", new Dictionary<string, object>()
+            {
+                { "doc1", dict }
+            });
+        }
 	}
 }

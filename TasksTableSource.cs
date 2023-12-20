@@ -3,23 +3,14 @@ using System.Collections.Generic;
 using Foundation;
 using UIKit;
 using DittoSDK;
+using System.Collections;
 
 namespace Tasks
 {
-	public class TasksTableSource : UITableViewSource
-	{
-        Task[] tasks;
+    public class TasksTableSource : UITableViewSource
+    {
+        DittoTask[] tasks;
         NSString cellIdentifier = new NSString("taskCell");
-        private const string collectionName = "tasks";
-
-
-        private DittoCollection collection
-        {
-            get
-            {
-                return this.ditto.Store.Collection(collectionName);
-            }
-        }
 
         private Ditto ditto
         {
@@ -30,14 +21,18 @@ namespace Tasks
             }
         }
 
-
-        public TasksTableSource(Task[] taskList)
-	{
+        public TasksTableSource(DittoTask[] taskList)
+        {
             this.tasks = taskList;
-	}
+        }
 
         public TasksTableSource()
         {
+        }
+
+        public void updateTasks(List<DittoTask> tasks)
+        {
+            this.tasks = tasks.ToArray();
         }
 
         public override UITableViewCell GetCell(UITableView tableView, NSIndexPath indexPath)
@@ -48,10 +43,10 @@ namespace Tasks
                 cell = new UITableViewCell(UITableViewCellStyle.Default, cellIdentifier);
             }
 
-            Task task = tasks[indexPath.Row];
+            var task = tasks[indexPath.Row];
 
-            cell.TextLabel.Text = task.body;
-            var taskComplete = task.isCompleted;
+            cell.TextLabel.Text = task.Body;
+            var taskComplete = task.IsCompleted;
             if (taskComplete)
             {
                 cell.Accessory = UITableViewCellAccessory.Checkmark;
@@ -65,24 +60,14 @@ namespace Tasks
             var tapGesture = new UITapGestureRecognizer();
             tapGesture.AddTarget(() =>
             {
-                if (taskComplete)
-                {
-                    collection.FindById(task._id).Update(mutableDoc =>
-                        mutableDoc["isCompleted"].Set(false)
-                    ); 
-                }
-                else
-                {
-                    collection.FindById(task._id).Update(mutableDoc =>
-                        mutableDoc["isCompleted"].Set(true)
-                    );
-                }
+                var updateQuery = $"UPDATE {DittoTask.CollectionName} " +
+                    $"SET isCompleted = {!task.IsCompleted} " +
+                    $"WHERE _id = '{task.Id}' AND isCompleted != {!task.IsCompleted}";
+                ditto.Store.ExecuteAsync(updateQuery);
             });
             cell.AddGestureRecognizer(tapGesture);
 
-
             return cell;
-
         }
 
         public override nint RowsInSection(UITableView tableview, nint section)
@@ -94,9 +79,9 @@ namespace Tasks
             return tasks.Length;
         }
 
-        public void updateTasks(List<Task> tasks)
+        public override bool CanEditRow(UITableView tableView, NSIndexPath indexPath)
         {
-            this.tasks = tasks.ToArray();
+            return true;
         }
 
         public override void CommitEditingStyle(UITableView tableView, UITableViewCellEditingStyle editingStyle, Foundation.NSIndexPath indexPath)
@@ -106,10 +91,10 @@ namespace Tasks
                 case UITableViewCellEditingStyle.Delete:
 
                     var task = tasks[indexPath.Row];
-                    collection.FindById(task._id).Update((mutableDoc) => {
-                        if (mutableDoc == null) return;
-                        mutableDoc["isDeleted"].Set(true);
-                    });
+                    var updateQuery = $"UPDATE {DittoTask.CollectionName} " +
+                        "SET isDeleted = true " +
+                        $"WHERE _id = '{task.Id}'";
+                    ditto.Store.ExecuteAsync(updateQuery);
                     break;
                 case UITableViewCellEditingStyle.None:
                     Console.WriteLine("CommitEditingStyle:None called");
